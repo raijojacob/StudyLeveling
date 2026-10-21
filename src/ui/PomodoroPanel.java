@@ -163,7 +163,7 @@ public class PomodoroPanel extends JPanel {
             // Log session pause event
             logic.SystemLogger.log("Focus Session paused (" + pauseTokens + " pauses left)");
         } else if (pauseTokens <= 0) {
-            JOptionPane.showMessageDialog(this, "No pause tokens remaining for this session!", "Pause Limit", JOptionPane.WARNING_MESSAGE);
+            showHudMessage("Pause Limit", "No pause tokens remaining for this session!", new Color(245, 158, 11));
         }
     }
 
@@ -200,9 +200,50 @@ public class PomodoroPanel extends JPanel {
 
             statusLabel.setText("✓ SESSION COMPLETE! +50 XP HARVESTED");
             statusLabel.setForeground(new Color(34, 197, 94));
-            JOptionPane.showMessageDialog(this, "Focus Session Complete!\n+50 XP added to your database profile.", "Target Reached", JOptionPane.INFORMATION_MESSAGE);
+            showHudMessage("Target Reached", "Focus Session Complete!<br>+50 XP added to your database profile.", new Color(34, 197, 94));
             resetTimer();
         }
+    }
+
+    private void showHudMessage(String title, String message, Color accentColor) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), title, true);
+        dialog.setUndecorated(true);
+
+        JPanel panel = new JPanel(new BorderLayout(15, 15));
+        panel.setBackground(new Color(24, 32, 38)); // Slate Card Background
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(38, 52, 64), 1),
+            BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+
+        JLabel titleLbl = new JLabel("⚠ " + title.toUpperCase());
+        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        titleLbl.setForeground(accentColor);
+
+        JLabel msgLbl = new JLabel("<html><div style='width:240px; color: #E2E8F0;'>" + message + "</div></html>");
+        msgLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+        JButton okBtn = new JButton("ACKNOWLEDGE");
+        okBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        okBtn.setBackground(new Color(28, 176, 246)); // Sapphire Blue
+        okBtn.setForeground(Color.WHITE);
+        okBtn.setFocusPainted(false);
+        okBtn.setBorder(BorderFactory.createEmptyBorder(6, 16, 6, 16));
+        okBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        okBtn.addActionListener(e -> dialog.dispose());
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        btnPanel.setOpaque(false);
+        btnPanel.add(okBtn);
+
+        panel.add(titleLbl, BorderLayout.NORTH);
+        panel.add(msgLbl, BorderLayout.CENTER);
+        panel.add(btnPanel, BorderLayout.SOUTH);
+
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
     }
 
     private void updateClockDisplay() {

@@ -22,7 +22,7 @@ public class MainFrame extends JFrame {
 
         // Register View Panels
         contentPanel.add(new DashboardPanel(this), "DASHBOARD");
-        contentPanel.add(new DailyDashboardPanel(), "DAILY_PATH");
+        contentPanel.add(new DailyDashboardPanel(this), "DAILY_PATH");
         contentPanel.add(new PomodoroPanel(), "POMODORO");
         contentPanel.add(new TaskManagerPanel(), "PDF_IMPORT");
         contentPanel.add(new StatsPanel(), "STATS");

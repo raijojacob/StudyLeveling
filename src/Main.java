@@ -5,13 +5,13 @@ import javax.swing.SwingUtilities;
 
 public class Main {
     public static void main(String[] args) {
-        // Apply FlatLaf modern dark theme
+        // flatlaf darktheme
         FlatDarkLaf.setup();
 
-        // Ensure database and tables exist
+        // database intialisation
         DatabaseManager.initializeDatabase();
 
-        // Launch UI
+        // ui
         SwingUtilities.invokeLater(() -> {
             AuthFrame authFrame = new AuthFrame();
             authFrame.setVisible(true);

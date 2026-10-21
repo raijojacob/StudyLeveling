@@ -5,22 +5,17 @@ import logic.SystemLogger;
 import logic.UserSession;
 import models.Task;
 
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
-
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
-import java.io.File;
-import java.io.IOException;
 import java.util.List;
 
 public class DailyDashboardPanel extends JPanel {
     private TaskDAO taskDAO;
     private JPanel listContainer;
+    private MainFrame parentFrame; // Added parent reference for routing
 
-    public DailyDashboardPanel() {
+    public DailyDashboardPanel(MainFrame parentFrame) {
+        this.parentFrame = parentFrame;
         this.taskDAO = new TaskDAO();
 
         setLayout(new BorderLayout(15, 15));
@@ -42,11 +37,11 @@ public class DailyDashboardPanel extends JPanel {
         textGroup.setLayout(new BoxLayout(textGroup, BoxLayout.Y_AXIS));
         textGroup.setOpaque(false);
 
-        JLabel titleLabel = new JLabel("TASK MANAGER // TODAY'S WORK");
+        JLabel titleLabel = new JLabel("DAILY TASKS // OBJECTIVE PATH");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
         titleLabel.setForeground(Color.WHITE);
 
-        JLabel subLabel = new JLabel("Manage manual objectives or import syllabus PDFs for automated portion division.");
+        JLabel subLabel = new JLabel("Review daily milestones. Add manual tasks or upload syllabus PDFs via Task Manager.");
         subLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subLabel.setForeground(new Color(140, 160, 175));
 
@@ -54,7 +49,7 @@ public class DailyDashboardPanel extends JPanel {
         textGroup.add(Box.createVerticalStrut(4));
         textGroup.add(subLabel);
 
-        // Action Buttons Bar
+        // Action Buttons Bar -> Redirects to Task Manager ("PDF_IMPORT")
         JPanel btnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         btnBar.setOpaque(false);
 
@@ -65,7 +60,7 @@ public class DailyDashboardPanel extends JPanel {
         addTaskBtn.setFocusPainted(false);
         addTaskBtn.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
         addTaskBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        addTaskBtn.addActionListener(e -> openAddTaskDialog());
+        addTaskBtn.addActionListener(e -> parentFrame.switchView("PDF_IMPORT"));
 
         JButton uploadSyllabusBtn = new JButton("UPLOAD SYLLABUS PDF");
         uploadSyllabusBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
@@ -74,7 +69,7 @@ public class DailyDashboardPanel extends JPanel {
         uploadSyllabusBtn.setFocusPainted(false);
         uploadSyllabusBtn.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
         uploadSyllabusBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        uploadSyllabusBtn.addActionListener(e -> uploadAndParseSyllabus());
+        uploadSyllabusBtn.addActionListener(e -> parentFrame.switchView("PDF_IMPORT"));
 
         btnBar.add(addTaskBtn);
         btnBar.add(uploadSyllabusBtn);
@@ -108,13 +103,13 @@ public class DailyDashboardPanel extends JPanel {
         return card;
     }
 
-    private void refreshTaskList() {
+    public void refreshTaskList() {
         listContainer.removeAll();
         int userId = UserSession.getInstance().getUserId();
         List<Task> tasks = taskDAO.getTasksForUser(userId);
 
         if (tasks.isEmpty()) {
-            JLabel emptyLbl = new JLabel("No tasks found. Click '+ ADD TASK' or upload a syllabus PDF to generate portions.");
+            JLabel emptyLbl = new JLabel("No tasks found. Click '+ ADD TASK' to manage targets in Task Manager.");
             emptyLbl.setFont(new Font("Segoe UI", Font.ITALIC, 12));
             emptyLbl.setForeground(Color.GRAY);
             listContainer.add(emptyLbl);
@@ -152,77 +147,13 @@ public class DailyDashboardPanel extends JPanel {
             refreshTaskList();
         });
 
-        JLabel statusBadge = new JLabel(task.isCompleted() ? "✓ COMPLETED" : "DUE: TODAY");
+        JLabel statusBadge = new JLabel(task.isCompleted() ? "✓ COMPLETED" : "DUE: " + (task.getDueDate() != null ? task.getDueDate().toString() : "Today"));
         statusBadge.setFont(new Font("Segoe UI Symbol", Font.BOLD, 11));
         statusBadge.setForeground(task.isCompleted() ? new Color(34, 197, 94) : new Color(56, 189, 248));
 
         row.add(check, BorderLayout.CENTER);
         row.add(statusBadge, BorderLayout.EAST);
         return row;
-    }
-
-    private void openAddTaskDialog() {
-        JTextField titleField = new JTextField(20);
-        JTextField dueDateField = new JTextField("Today", 10);
-
-        JPanel panel = new JPanel(new GridLayout(0, 1, 5, 5));
-        panel.add(new JLabel("Task Title / Objective:"));
-        panel.add(titleField);
-        panel.add(new JLabel("Due Date (e.g., Today, 2026-10-25):"));
-        panel.add(dueDateField);
-
-        int result = JOptionPane.showConfirmDialog(this, panel, "Create Manual Task", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (result == JOptionPane.OK_OPTION) {
-            String title = titleField.getText().trim();
-            String dueDate = dueDateField.getText().trim();
-            if (!title.isEmpty()) {
-                int userId = UserSession.getInstance().getUserId();
-                taskDAO.addTask(userId, title, dueDate);
-                SystemLogger.log("Manual task created: " + title);
-                refreshTaskList();
-            }
-        }
-    }
-
-    private void uploadAndParseSyllabus() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Syllabus Files", "pdf"));
-        int option = fileChooser.showOpenDialog(this);
-
-        if (option == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-            try (PDDocument document = Loader.loadPDF(file)) {
-                PDFTextStripper stripper = new PDFTextStripper();
-                String text = stripper.getText(document);
-
-                // Automatically divide text into portions/chapters (splitting by newlines or keywords)
-                String[] lines = text.split("\\r?\\n");
-                int userId = UserSession.getInstance().getUserId();
-                int count = 0;
-
-                for (String line : lines) {
-                    String trimmed = line.trim();
-                    // Detect potential modules, chapters, or syllabus headings
-                    if (trimmed.toLowerCase().contains("module") || trimmed.toLowerCase().contains("unit") || trimmed.toLowerCase().contains("chapter") || (trimmed.length() > 5 && trimmed.length() < 60 && Character.isUpperCase(trimmed.charAt(0)))) {
-                        taskDAO.addTask(userId, "Syllabus Part: " + trimmed, "Syllabus Target");
-                        count++;
-                        if (count >= 10) break; // Limit auto-generation per upload batch
-                    }
-                }
-
-                if (count == 0 && lines.length > 0) {
-                    // Fallback: create generic tasks if specific headings aren't matched
-                    taskDAO.addTask(userId, "Review Syllabus: " + file.getName(), "Syllabus Target");
-                }
-
-                SystemLogger.log("Syllabus parsed successfully: " + file.getName() + " (" + Math.max(count, 1) + " portions created)");
-                JOptionPane.showMessageDialog(this, "Syllabus parsed and divided into study tasks successfully!", "Import Complete", JOptionPane.INFORMATION_MESSAGE);
-                refreshTaskList();
-
-            } catch (IOException e) {
-                JOptionPane.showMessageDialog(this, "Failed to parse PDF file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
     }
 
     private JPanel createHudCard() {

@@ -60,7 +60,7 @@ public class SidebarPanel extends JPanel {
         navPanel.add(Box.createVerticalStrut(4));
         navPanel.add(createNavButton("▤", "Task Manager", "PDF_IMPORT"));
         navPanel.add(Box.createVerticalStrut(4));
-        navPanel.add(createNavButton("🎯", "Today's Work", "DAILY_PATH"));
+        navPanel.add(createNavButton("🎯", "Daily Missions", "DAILY_PATH"));
         navPanel.add(Box.createVerticalStrut(4));
         navPanel.add(createNavButton("⏱", "Focus Timer", "POMODORO"));
 
