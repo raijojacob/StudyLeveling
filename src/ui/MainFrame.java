@@ -7,6 +7,7 @@ import java.awt.*;
 public class MainFrame extends JFrame {
     private JPanel contentPanel;
     private CardLayout cardLayout;
+    private SidebarPanel sidebar;
 
     public MainFrame() {
         String username = UserSession.getInstance().getUsername();
@@ -23,20 +24,24 @@ public class MainFrame extends JFrame {
         contentPanel.add(new DashboardPanel(this), "DASHBOARD");
         contentPanel.add(new DailyDashboardPanel(), "DAILY_PATH");
         contentPanel.add(new PomodoroPanel(), "POMODORO");
-        contentPanel.add(new PdfImportPanel(), "PDF_IMPORT");
+        contentPanel.add(new TaskManagerPanel(), "PDF_IMPORT");
         contentPanel.add(new StatsPanel(), "STATS");
 
-        SidebarPanel sidebar = new SidebarPanel(this);
+        sidebar = new SidebarPanel(this);
 
         add(sidebar, BorderLayout.WEST);
         add(contentPanel, BorderLayout.CENTER);
 
         // Default view
         cardLayout.show(contentPanel, "DASHBOARD");
+        sidebar.setActiveView("DASHBOARD");
     }
 
     public void switchView(String viewName) {
         cardLayout.show(contentPanel, viewName);
+        if (sidebar != null) {
+            sidebar.setActiveView(viewName);
+        }
     }
 
     public void performLogout() {

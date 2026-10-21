@@ -1,5 +1,6 @@
 package ui;
 
+import db.DocumentDAO;
 import db.StatsDAO;
 import db.TaskDAO;
 import logic.SystemLogger;
@@ -15,11 +16,13 @@ public class DashboardPanel extends JPanel {
     private MainFrame parentFrame;
     private TaskDAO taskDAO;
     private StatsDAO statsDAO;
+    private DocumentDAO documentDAO;
 
     public DashboardPanel(MainFrame parentFrame) {
         this.parentFrame = parentFrame;
         this.taskDAO = new TaskDAO();
         this.statsDAO = new StatsDAO();
+        this.documentDAO = new DocumentDAO();
 
         setLayout(new BorderLayout(15, 15));
         setBackground(new Color(18, 24, 29)); // Dark Obsidian Canvas
@@ -262,7 +265,7 @@ public class DashboardPanel extends JPanel {
         JPanel right = new JPanel(new GridLayout(2, 1, 0, 15));
         right.setOpaque(false);
 
-        // 1. Quick Repository
+        // 1. Quick Repository (Dynamic database read)
         JPanel repoCard = createHudCard();
         repoCard.setLayout(new BorderLayout(10, 10));
 
@@ -275,9 +278,20 @@ public class DashboardPanel extends JPanel {
         docList.setLayout(new BoxLayout(docList, BoxLayout.Y_AXIS));
         docList.setOpaque(false);
 
-        docList.add(createDocItem("Java_OOP_Notes.pdf", "12 Modules • Active"));
-        docList.add(Box.createVerticalStrut(6));
-        docList.add(createDocItem("Discrete_Math_v2.pdf", "8 Modules • In Progress"));
+        int userId = UserSession.getInstance().getUserId();
+        List<DocumentDAO.DocumentRecord> documents = documentDAO.getDocumentsForUser(userId);
+
+        if (documents.isEmpty()) {
+            JLabel emptyDocs = new JLabel("No files uploaded yet. Click below to import.");
+            emptyDocs.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+            emptyDocs.setForeground(new Color(120, 140, 155));
+            docList.add(emptyDocs);
+        } else {
+            for (DocumentDAO.DocumentRecord doc : documents) {
+                docList.add(createDocItem(doc.getFileName(), doc.getCompletedModules(), doc.getTotalModules()));
+                docList.add(Box.createVerticalStrut(8));
+            }
+        }
 
         repoCard.add(docList, BorderLayout.CENTER);
 
@@ -314,8 +328,8 @@ public class DashboardPanel extends JPanel {
         return right;
     }
 
-    private JPanel createDocItem(String name, String meta) {
-        JPanel p = new JPanel(new BorderLayout());
+    private JPanel createDocItem(String name, int completedModules, int totalModules) {
+        JPanel p = new JPanel(new BorderLayout(0, 4));
         p.setOpaque(false);
 
         JLabel iconLbl = new JLabel("▤ ");
@@ -331,18 +345,34 @@ public class DashboardPanel extends JPanel {
         titleRow.add(iconLbl);
         titleRow.add(nameLbl);
 
-        JLabel metaLbl = new JLabel(meta);
+        JProgressBar progressBar = new JProgressBar(0, totalModules);
+        progressBar.setValue(completedModules);
+        progressBar.setPreferredSize(new Dimension(180, 5));
+        progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 5));
+        progressBar.setForeground(new Color(56, 189, 248));
+        progressBar.setBackground(new Color(30, 42, 52));
+        progressBar.setBorderPainted(false);
+
+        int percentage = (totalModules > 0) ? (int)(((double) completedModules / totalModules) * 100) : 0;
+        JLabel metaLbl = new JLabel(completedModules + "/" + totalModules + " Modules Complete (" + percentage + "%)");
         metaLbl.setFont(new Font("Segoe UI", Font.PLAIN, 10));
         metaLbl.setForeground(new Color(120, 140, 155));
 
+        JPanel bottomGroup = new JPanel();
+        bottomGroup.setLayout(new BoxLayout(bottomGroup, BoxLayout.Y_AXIS));
+        bottomGroup.setOpaque(false);
+        bottomGroup.add(progressBar);
+        bottomGroup.add(Box.createVerticalStrut(3));
+        bottomGroup.add(metaLbl);
+
         p.add(titleRow, BorderLayout.NORTH);
-        p.add(metaLbl, BorderLayout.SOUTH);
+        p.add(bottomGroup, BorderLayout.SOUTH);
         return p;
     }
 
     private JPanel createHudCard() {
         JPanel card = new JPanel();
-        card.setBackground(new Color(24, 32, 38)); // Slate Card
+        card.setBackground(new Color(24, 32, 38));
         card.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(38, 52, 64), 1),
             BorderFactory.createEmptyBorder(12, 12, 12, 12)
