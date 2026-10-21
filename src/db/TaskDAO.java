@@ -55,8 +55,22 @@ public class TaskDAO {
         }
     }
 
+    // Overloaded method to accept date strings safely from UI inputs
+    public void addTask(int userId, String title, String dueDateStr) {
+        LocalDate date;
+        try {
+            date = (dueDateStr != null && !dueDateStr.isEmpty() && !dueDateStr.equalsIgnoreCase("Today")) 
+                   ? LocalDate.parse(dueDateStr) 
+                   : LocalDate.now();
+        } catch (Exception e) {
+            date = LocalDate.now();
+        }
+        addTask(userId, title, date);
+    }
+
     public void createTask(Task task) {
-        addTask(task.getUserId(), task.getTitle(), task.getDueDate());
+        LocalDate date = task.getDueDate() != null ? task.getDueDate() : LocalDate.now();
+        addTask(task.getUserId(), task.getTitle(), date);
     }
 
     public void updateTaskCompletion(int taskId, boolean completed) {
