@@ -1,197 +1,235 @@
 package ui;
 
 import db.StatsDAO;
-import models.UserStats;
+import logic.UserSession;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SidebarPanel extends JPanel {
     private MainFrame parentFrame;
-    private List<NavButtonWrapper> navButtons = new ArrayList<>();
-
-    private static class NavButtonWrapper {
-        JButton button;
-        String targetView;
-        JLabel iconLabel;
-        JLabel textLabel;
-
-        public NavButtonWrapper(JButton button, String targetView, JLabel iconLabel, JLabel textLabel) {
-            this.button = button;
-            this.targetView = targetView;
-            this.iconLabel = iconLabel;
-            this.textLabel = textLabel;
-        }
-    }
+    
+    // Tracking nav buttons for active state highlighting
+    private Map<String, JButton> navButtons = new HashMap<>();
+    private String currentActiveView = "DASHBOARD";
+    
+    // Bottom panel components to update dynamically
+    private JLabel operatorNameLbl;
+    private JLabel levelLbl;
+    private JLabel xpLbl;
+    private JProgressBar xpBar;
 
     public SidebarPanel(MainFrame parentFrame) {
         this.parentFrame = parentFrame;
-        
+
         setLayout(new BorderLayout());
-        setPreferredSize(new Dimension(220, 0));
-        setBackground(new Color(15, 20, 24)); // Dark HUD obsidian background
-        setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(30, 45, 55)));
+        setBackground(new Color(15, 20, 24)); // Darker sidebar background
+        setPreferredSize(new Dimension(240, 0)); // Fixed width for sidebar
+        setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(38, 52, 64))); // Right border
 
-        // Top Header
-        JPanel topPanel = new JPanel();
-        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
-        topPanel.setOpaque(false);
-        topPanel.setBorder(BorderFactory.createEmptyBorder(20, 15, 15, 15));
+        // 1. Top Logo Section
+        add(createLogoPanel(), BorderLayout.NORTH);
 
-        JLabel titleLabel = new JLabel("STUDY LEVELLING");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        titleLabel.setForeground(new Color(225, 235, 245));
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        topPanel.add(titleLabel);
-        topPanel.add(Box.createVerticalStrut(20));
+        // 2. Middle Navigation Section
+        add(createNavPanel(), BorderLayout.CENTER);
 
-        // Navigation Menu Container
-        JPanel navPanel = new JPanel();
-        navPanel.setLayout(new BoxLayout(navPanel, BoxLayout.Y_AXIS));
-        navPanel.setOpaque(false);
-        navPanel.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
+        // 3. Bottom User Profile & Stats Section
+        add(createUserStatsPanel(), BorderLayout.SOUTH);
 
-        // SYSTEM SECTION (Study Material renamed to Add Task)
-        navPanel.add(createSectionLabel("SYSTEM"));
-        navPanel.add(Box.createVerticalStrut(6));
-        navPanel.add(createNavButton("◫", "Dashboard", "DASHBOARD"));
-        navPanel.add(Box.createVerticalStrut(4));
-        navPanel.add(createNavButton("▤", "Task Manager", "PDF_IMPORT"));
-        navPanel.add(Box.createVerticalStrut(4));
-        navPanel.add(createNavButton("🎯", "Daily Missions", "DAILY_PATH"));
-        navPanel.add(Box.createVerticalStrut(4));
-        navPanel.add(createNavButton("⏱", "Focus Timer", "POMODORO"));
+        // Fetch initial data
+        refreshSidebarStats();
+    }
 
-        navPanel.add(Box.createVerticalStrut(18));
+    private JPanel createLogoPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        panel.setBorder(new EmptyBorder(25, 20, 25, 20));
 
-        // PROGRESS SECTION
-        navPanel.add(createSectionLabel("PROGRESS"));
-        navPanel.add(Box.createVerticalStrut(6));
-        navPanel.add(createNavButton("☵", "Statistics", "STATS"));
+        JLabel title = new JLabel("STUDY LEVELLING");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(Color.WHITE);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        topPanel.add(navPanel);
-        add(topPanel, BorderLayout.NORTH);
+        JLabel subtitle = new JLabel("// LOCAL HUD SYSTEM");
+        subtitle.setFont(new Font("Segoe UI", Font.BOLD, 9));
+        subtitle.setForeground(new Color(56, 189, 248));
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        // Bottom Footer Widget (User Level & Logout)
+        panel.add(title);
+        panel.add(Box.createVerticalStrut(4));
+        panel.add(subtitle);
+
+        return panel;
+    }
+
+    private JPanel createNavPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        panel.setBorder(new EmptyBorder(0, 10, 0, 10));
+
+        // Create Navigation Buttons (Ensure these strings match your MainFrame CardLayout constraints)
+        panel.add(createNavButton("DASHBOARD", "DASHBOARD"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(createNavButton("DAILY TASKS", "DAILY_PATH"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(createNavButton("TASK MANAGER", "TASKS"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(createNavButton("TIMER ENGINE", "POMODORO"));
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(createNavButton("TELEMETRY", "STATS"));
+
+        return panel;
+    }
+
+    private JButton createNavButton(String label, String viewName) {
+        JButton btn = new JButton(label);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btn.setForeground(new Color(140, 160, 175));
+        btn.setBackground(new Color(15, 20, 24));
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        // Hover effect for HUD feel, respecting active state
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                btn.setForeground(Color.WHITE);
+                btn.setBackground(new Color(24, 32, 38));
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                if (!viewName.equals(currentActiveView)) {
+                    btn.setForeground(new Color(140, 160, 175));
+                    btn.setBackground(new Color(15, 20, 24));
+                }
+            }
+        });
+
+        btn.addActionListener(e -> {
+            if(parentFrame != null) {
+                parentFrame.switchView(viewName); 
+            }
+        });
+
+        navButtons.put(viewName, btn);
+        return btn;
+    }
+
+    /**
+     * Called by MainFrame to visually highlight the active sidebar button.
+     */
+    public void setActiveView(String viewName) {
+        this.currentActiveView = viewName;
+        
+        for (Map.Entry<String, JButton> entry : navButtons.entrySet()) {
+            JButton btn = entry.getValue();
+            if (entry.getKey().equals(viewName)) {
+                btn.setForeground(Color.WHITE);
+                btn.setBackground(new Color(24, 32, 38)); // Active state
+            } else {
+                btn.setForeground(new Color(140, 160, 175));
+                btn.setBackground(new Color(15, 20, 24)); // Inactive state
+            }
+        }
+    }
+
+    private JPanel createUserStatsPanel() {
         JPanel bottomPanel = new JPanel();
         bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
         bottomPanel.setOpaque(false);
-        bottomPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        bottomPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(38, 52, 64)),
+            new EmptyBorder(20, 20, 20, 20)
+        ));
 
-        UserStats stats = new StatsDAO().getUserStats();
-        int xp = (stats != null) ? stats.getTotalXp() : 0;
-        int level = (xp / 100) + 1;
-        int nextLevelXp = level * 100;
+        // Operator Header
+        operatorNameLbl = new JLabel("OPERATOR");
+        operatorNameLbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        operatorNameLbl.setForeground(Color.WHITE);
+        operatorNameLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel levelLabel = new JLabel("LVL " + level + "    " + xp + " / " + nextLevelXp + " XP");
-        levelLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        levelLabel.setForeground(new Color(56, 189, 248));
-        levelLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // Level & XP Row
+        JPanel statsRow = new JPanel(new BorderLayout());
+        statsRow.setOpaque(false);
+        statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+        statsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        levelLbl = new JLabel("LVL 1");
+        levelLbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        levelLbl.setForeground(new Color(168, 85, 247)); // Purple Tier Color
+        
+        xpLbl = new JLabel("0 XP");
+        xpLbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        xpLbl.setForeground(new Color(140, 160, 175));
 
-        JProgressBar levelBar = new JProgressBar(0, 100);
-        levelBar.setValue((int)(((double)(xp % 100) / 100.0) * 100));
-        levelBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
-        levelBar.setForeground(new Color(56, 189, 248));
-        levelBar.setBackground(new Color(25, 35, 45));
-        levelBar.setBorderPainted(false);
-        levelBar.setAlignmentX(Component.LEFT_ALIGNMENT);
+        statsRow.add(levelLbl, BorderLayout.WEST);
+        statsRow.add(xpLbl, BorderLayout.EAST);
 
-        JButton logoutBtn = createLogoutButton("➔", "Logout");
-        logoutBtn.addActionListener(e -> parentFrame.performLogout());
+        // HUD Progress Bar
+        xpBar = new JProgressBar(0, 500); // 500 XP per level
+        xpBar.setValue(0);
+        xpBar.setStringPainted(false);
+        xpBar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 6));
+        xpBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
+        xpBar.setBackground(new Color(24, 32, 38));
+        xpBar.setForeground(new Color(56, 189, 248)); // Sapphire Blue
+        xpBar.setBorderPainted(false);
+        xpBar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        bottomPanel.add(levelLabel);
-        bottomPanel.add(Box.createVerticalStrut(6));
-        bottomPanel.add(levelBar);
+        // Logout Button
+        JButton logoutBtn = new JButton("LOGOUT SYSTEM");
+        logoutBtn.setFont(new Font("Segoe UI", Font.BOLD, 9));
+        logoutBtn.setForeground(new Color(248, 113, 113)); // Red accent for logout
+        logoutBtn.setContentAreaFilled(false);
+        logoutBtn.setBorderPainted(false);
+        logoutBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        logoutBtn.setMargin(new Insets(0, 0, 0, 0));
+        logoutBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        logoutBtn.addActionListener(e -> {
+            UserSession.getInstance().logout();
+            parentFrame.dispose();
+            new AuthFrame().setVisible(true);
+        });
+
+        // Assembly
+        bottomPanel.add(operatorNameLbl);
+        bottomPanel.add(Box.createVerticalStrut(10));
+        bottomPanel.add(statsRow);
+        bottomPanel.add(Box.createVerticalStrut(4));
+        bottomPanel.add(xpBar);
         bottomPanel.add(Box.createVerticalStrut(15));
         bottomPanel.add(logoutBtn);
 
-        add(bottomPanel, BorderLayout.SOUTH);
-
-        // Initial highlight
-        setActiveView("DASHBOARD");
+        return bottomPanel;
     }
 
-    private JLabel createSectionLabel(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        lbl.setForeground(new Color(100, 120, 135));
-        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return lbl;
-    }
+    /**
+     * Call this method from MainFrame whenever tasks are completed or XP is gained
+     * to instantly update the sidebar progress bar.
+     */
+    public void refreshSidebarStats() {
+        int userId = UserSession.getInstance().getUserId();
+        String username = UserSession.getInstance().getUsername();
 
-    private JButton createNavButton(String iconSymbol, String text, String targetView) {
-        JButton btn = new JButton();
-        btn.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        btn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        if (userId != -1) {
+            StatsDAO statsDAO = new StatsDAO();
+            int xp = statsDAO.getXp(userId);
+            int level = (xp / 500) + 1; // 500 XP per level
+            int currentLevelXp = xp % 500; // Remaining XP for the progress bar
 
-        JLabel iconLabel = new JLabel(iconSymbol);
-        iconLabel.setFont(new Font("Segoe UI Symbol", Font.PLAIN, 14));
-
-        JLabel textLabel = new JLabel(text);
-        textLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-
-        btn.add(iconLabel);
-        btn.add(textLabel);
-
-        navButtons.add(new NavButtonWrapper(btn, targetView, iconLabel, textLabel));
-
-        if (targetView != null) {
-            btn.addActionListener(e -> {
-                parentFrame.switchView(targetView);
-                setActiveView(targetView);
-            });
-        }
-        return btn;
-    }
-
-    private JButton createLogoutButton(String iconSymbol, String text) {
-        JButton btn = new JButton();
-        btn.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        btn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.setOpaque(false);
-        btn.setContentAreaFilled(false);
-
-        JLabel iconLabel = new JLabel(iconSymbol);
-        iconLabel.setFont(new Font("Segoe UI Symbol", Font.PLAIN, 14));
-        iconLabel.setForeground(new Color(248, 113, 113));
-
-        JLabel textLabel = new JLabel(text);
-        textLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        textLabel.setForeground(new Color(248, 113, 113));
-
-        btn.add(iconLabel);
-        btn.add(textLabel);
-        btn.setBorder(BorderFactory.createEmptyBorder(4, 11, 4, 8));
-        return btn;
-    }
-
-    public void setActiveView(String viewName) {
-        for (NavButtonWrapper wrapper : navButtons) {
-            if (wrapper.targetView.equals(viewName)) {
-                wrapper.button.setBackground(new Color(24, 40, 52));
-                wrapper.button.setOpaque(true);
-                wrapper.button.setContentAreaFilled(true);
-                wrapper.iconLabel.setForeground(new Color(56, 189, 248));
-                wrapper.textLabel.setForeground(new Color(56, 189, 248));
-                wrapper.button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createMatteBorder(0, 3, 0, 0, new Color(56, 189, 248)),
-                    BorderFactory.createEmptyBorder(4, 8, 4, 8)
-                ));
-            } else {
-                wrapper.button.setOpaque(false);
-                wrapper.button.setContentAreaFilled(false);
-                wrapper.iconLabel.setForeground(new Color(170, 185, 200));
-                wrapper.textLabel.setForeground(new Color(170, 185, 200));
-                wrapper.button.setBorder(BorderFactory.createEmptyBorder(4, 11, 4, 8));
-            }
+            operatorNameLbl.setText((username != null ? username.toUpperCase() : "UNKNOWN"));
+            levelLbl.setText("LVL " + level);
+            xpLbl.setText(String.format("%,d XP", xp));
+            
+            xpBar.setMaximum(500);
+            xpBar.setValue(currentLevelXp);
         }
     }
 }

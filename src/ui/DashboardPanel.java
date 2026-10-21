@@ -6,7 +6,6 @@ import db.TaskDAO;
 import logic.SystemLogger;
 import logic.UserSession;
 import models.Task;
-import models.UserStats;
 
 import javax.swing.*;
 import java.awt.*;
@@ -90,12 +89,20 @@ public class DashboardPanel extends JPanel {
         grid.setOpaque(false);
         grid.setBorder(BorderFactory.createEmptyBorder(10, 0, 15, 0));
 
-        UserStats stats = statsDAO.getUserStats();
-        int xp = (stats != null) ? stats.getTotalXp() : 0;
-        int streak = (stats != null) ? stats.getCurrentStreak() : 0;
+        int userId = logic.UserSession.getInstance().getUserId();
+        int xp = (userId != -1) ? statsDAO.getXp(userId) : 0;
+
+        int streak = 0;
+        if (userId != -1) {
+            boolean[] matrixLogs = statsDAO.getConsistencyMatrix(userId);
+            for (int i = 27; i >= 0; i--) {
+                if (matrixLogs[i]) streak++;
+                else break;
+            }
+        }
+
         int level = (xp / 100) + 1;
 
-        int userId = UserSession.getInstance().getUserId();
         List<Task> tasks = taskDAO.getTasksForUser(userId);
         long completedCount = tasks.stream().filter(Task::isCompleted).count();
         int totalTasks = tasks.size();
@@ -104,9 +111,9 @@ public class DashboardPanel extends JPanel {
         grid.add(createMetricCard("CURRENT STREAK", streak + " DAYS", "STABLE RECORD", "RECORD TIER: " + streak + " DAYS", new Color(245, 158, 11)));
         
         String rate = totalTasks > 0 ? (int)(((double)completedCount / totalTasks) * 100) + "% RATE" : "0% RATE";
-        grid.add(createMetricCard("TODAY'S OBJECTIVES", completedCount + "/" + totalTasks + " COMPLETE", rate, "EXP HARVEST: +" + (completedCount * 50) + " XP", new Color(34, 197, 94)));
-        grid.add(createMetricCard("TOTAL STUDY TIME", (xp * 2) + "m", "LIFETIME LOGGED", "ACTIVE SESSION: Today " + (completedCount * 25) + "m", new Color(168, 85, 247)));
-
+        grid.add(createMetricCard("TODAY'S OBJECTIVES", completedCount + "/" + totalTasks + " COMPLETE", rate, "EXP HARVEST: +" + (completedCount * 50), new Color(34, 197, 94)));
+        grid.add(createMetricCard("TOTAL STUDY TIME", (xp * 2) + "m", "LIFETIME LOGGED", "ACTIVE SESSION: Today " + (completedCount * 25) + "m", new Color(56, 189, 248)));
+        
         return grid;
     }
 

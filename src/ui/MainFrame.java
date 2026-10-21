@@ -20,11 +20,12 @@ public class MainFrame extends JFrame {
         cardLayout = new CardLayout();
         contentPanel = new JPanel(cardLayout);
 
-        // Register View Panels
+        // Register View Panels with correct unique route names
         contentPanel.add(new DashboardPanel(this), "DASHBOARD");
         contentPanel.add(new DailyDashboardPanel(this), "DAILY_PATH");
         contentPanel.add(new PomodoroPanel(), "POMODORO");
-        contentPanel.add(new TaskManagerPanel(), "PDF_IMPORT");
+        contentPanel.add(new TaskManagerPanel(), "TASKS");
+        contentPanel.add(new TaskManagerPanel(), "PDF_IMPORT"); // Handles both routes cleanly
         contentPanel.add(new StatsPanel(), "STATS");
 
         sidebar = new SidebarPanel(this);

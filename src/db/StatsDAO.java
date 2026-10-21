@@ -1,96 +1,50 @@
 package db;
 
-import logic.UserSession;
-import models.UserStats;
-
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 public class StatsDAO {
 
-    public UserStats getUserStats() {
-        int userId = UserSession.getInstance().getUserId();
-        if (userId == -1) return new UserStats(0, 0, (java.util.Date) null);
-
-        return getUserStats(userId);
-    }
-
-    public UserStats getUserStats(int userId) {
-        String query = "SELECT total_xp, current_streak, last_completed_date FROM stats WHERE user_id = ?";
+    public int getXp(int userId) {
+        String query = "SELECT xp FROM stats WHERE user_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
-
             pstmt.setInt(1, userId);
             try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return new UserStats(
-                            rs.getInt("total_xp"),
-                            rs.getInt("current_streak"),
-                            rs.getDate("last_completed_date")
-                    );
-                }
+                if (rs.next()) return rs.getInt("xp");
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return new UserStats(0, 0, (java.util.Date) null);
+        return 0;
     }
 
-    // Overloaded single-parameter method called by PomodoroEngine / PomodoroPanel
-    public void addXpAndUpdateStreak(int xpGained) {
-        int userId = UserSession.getInstance().getUserId();
-        if (userId != -1) {
-            addXpAndUpdateStreak(userId, xpGained);
-        }
-    }
-
-    // Two-parameter method to update XP and streak state in MySQL
-    public void addXpAndUpdateStreak(int userId, int xpGained) {
-        String checkQuery = "SELECT total_xp, current_streak, last_completed_date FROM stats WHERE user_id = ?";
-        String insertQuery = "INSERT INTO stats (user_id, total_xp, current_streak, last_completed_date) VALUES (?, ?, 1, CURDATE())";
-        String updateQuery = "UPDATE stats SET total_xp = total_xp + ?, current_streak = ?, last_completed_date = CURDATE() WHERE user_id = ?";
+    public void addXp(int userId, int amount) {
+        String checkQuery = "SELECT xp FROM stats WHERE user_id = ?";
+        String updateQuery = "UPDATE stats SET xp = xp + ? WHERE user_id = ?";
+        String insertQuery = "INSERT INTO stats (user_id, xp) VALUES (?, ?)";
 
         try (Connection conn = DatabaseManager.getConnection()) {
             boolean exists = false;
-            int currentStreak = 0;
-            Date lastDate = null;
-
-            try (PreparedStatement checkPstmt = conn.prepareStatement(checkQuery)) {
-                checkPstmt.setInt(1, userId);
-                try (ResultSet rs = checkPstmt.executeQuery()) {
-                    if (rs.next()) {
-                        exists = true;
-                        currentStreak = rs.getInt("current_streak");
-                        lastDate = rs.getDate("last_completed_date");
-                    }
+            try (PreparedStatement pstmt = conn.prepareStatement(checkQuery)) {
+                pstmt.setInt(1, userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    exists = rs.next();
                 }
-            }
-
-            // Streak calculation logic based on last activity date
-            LocalDate today = LocalDate.now();
-            if (lastDate != null) {
-                LocalDate lastCompleted = lastDate.toLocalDate();
-                if (lastCompleted.equals(today.minusDays(1))) {
-                    currentStreak++; // Continued daily streak
-                } else if (!lastCompleted.equals(today)) {
-                    currentStreak = 1; // Streak reset due to missed days
-                }
-            } else {
-                currentStreak = 1;
             }
 
             if (exists) {
-                try (PreparedStatement updatePstmt = conn.prepareStatement(updateQuery)) {
-                    updatePstmt.setInt(1, xpGained);
-                    updatePstmt.setInt(2, currentStreak);
-                    updatePstmt.setInt(3, userId);
-                    updatePstmt.executeUpdate();
+                try (PreparedStatement pstmt = conn.prepareStatement(updateQuery)) {
+                    pstmt.setInt(1, amount);
+                    pstmt.setInt(2, userId);
+                    pstmt.executeUpdate();
                 }
             } else {
-                try (PreparedStatement insertPstmt = conn.prepareStatement(insertQuery)) {
-                    insertPstmt.setInt(1, userId);
-                    insertPstmt.setInt(2, xpGained);
-                    insertPstmt.executeUpdate();
+                try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+                    pstmt.setInt(1, userId);
+                    pstmt.setInt(2, amount);
+                    pstmt.executeUpdate();
                 }
             }
         } catch (SQLException e) {
@@ -98,7 +52,89 @@ public class StatsDAO {
         }
     }
 
-    public void addXp(int userId, int xpToAdd) {
-        addXpAndUpdateStreak(userId, xpToAdd);
+    public int getTotalTasksCount(int userId) {
+        String query = "SELECT COUNT(*) FROM tasks WHERE user_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public int getCompletedTasksCount(int userId) {
+        String query = "SELECT COUNT(*) FROM tasks WHERE user_id = ? AND completed = 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // DYNAMIC HISTOGRAM DATA: Maps completed tasks by due_date to the last 7 days
+    public double[] getWeeklyHours(int userId) {
+        double[] hours = new double[7]; // Index 6 is today, Index 0 is 6 days ago
+        String query = "SELECT due_date, COUNT(*) as task_count FROM tasks WHERE user_id = ? AND completed = 1 GROUP BY due_date";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                LocalDate today = LocalDate.now();
+                while (rs.next()) {
+                    String dateStr = rs.getString("due_date");
+                    int count = rs.getInt("task_count");
+                    if (dateStr != null && !dateStr.isEmpty() && !dateStr.equalsIgnoreCase("Today")) {
+                        try {
+                            LocalDate date = LocalDate.parse(dateStr);
+                            long daysBetween = ChronoUnit.DAYS.between(date, today);
+                            if (daysBetween >= 0 && daysBetween < 7) {
+                                // Maps 1 completed task to ~0.5 focus hours
+                                hours[6 - (int)daysBetween] += (count * 0.5); 
+                            }
+                        } catch (Exception e) {} // Skip unparseable dates safely
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return hours;
+    }
+
+    // DYNAMIC MATRIX DATA: Maps completed tasks to the last 28 days
+    public boolean[] getConsistencyMatrix(int userId) {
+        boolean[] matrix = new boolean[28]; // Index 27 is today, Index 0 is 27 days ago
+        String query = "SELECT due_date FROM tasks WHERE user_id = ? AND completed = 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                LocalDate today = LocalDate.now();
+                while (rs.next()) {
+                    String dateStr = rs.getString("due_date");
+                    if (dateStr != null && !dateStr.isEmpty() && !dateStr.equalsIgnoreCase("Today")) {
+                        try {
+                            LocalDate date = LocalDate.parse(dateStr);
+                            long daysBetween = ChronoUnit.DAYS.between(date, today);
+                            if (daysBetween >= 0 && daysBetween < 28) {
+                                matrix[27 - (int)daysBetween] = true;
+                            }
+                        } catch (Exception e) {}
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return matrix;
     }
 }
