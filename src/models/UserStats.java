@@ -1,30 +1,45 @@
 package models;
 
-import java.time.LocalDate;
+import java.util.Date;
 
 public class UserStats {
-    private int userId;
     private int totalXp;
     private int currentStreak;
-    private LocalDate lastCompletedDate;
+    private Date lastCompletedDate;
 
-    public UserStats(int userId, int totalXp, int currentStreak, LocalDate lastCompletedDate) {
-        this.userId = userId;
+    public UserStats() {
+        this.totalXp = 0;
+        this.currentStreak = 0;
+        this.lastCompletedDate = null;
+    }
+
+    public UserStats(int totalXp, int currentStreak, Date lastCompletedDate) {
         this.totalXp = totalXp;
         this.currentStreak = currentStreak;
         this.lastCompletedDate = lastCompletedDate;
     }
 
-    // Getters and Setters
-    public int getUserId() { return userId; }
-    public void setUserId(int userId) { this.userId = userId; }
+    public int getTotalXp() {
+        return totalXp;
+    }
 
-    public int getTotalXp() { return totalXp; }
-    public void setTotalXp(int totalXp) { this.totalXp = totalXp; }
+    public void setTotalXp(int totalXp) {
+        this.totalXp = totalXp;
+    }
 
-    public int getCurrentStreak() { return currentStreak; }
-    public void setCurrentStreak(int currentStreak) { this.currentStreak = currentStreak; }
+    public int getCurrentStreak() {
+        return currentStreak;
+    }
 
-    public LocalDate getLastCompletedDate() { return lastCompletedDate; }
-    public void setLastCompletedDate(LocalDate lastCompletedDate) { this.lastCompletedDate = lastCompletedDate; }
+    public void setCurrentStreak(int currentStreak) {
+        this.currentStreak = currentStreak;
+    }
+
+    public Date getLastCompletedDate() {
+        return lastCompletedDate;
+    }
+
+    public void setLastCompletedDate(Date lastCompletedDate) {
+        this.lastCompletedDate = lastCompletedDate;
+    }
 }

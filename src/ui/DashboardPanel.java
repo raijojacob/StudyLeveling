@@ -2,14 +2,13 @@ package ui;
 
 import db.StatsDAO;
 import db.TaskDAO;
+import logic.SystemLogger;
 import logic.UserSession;
 import models.Task;
 import models.UserStats;
 
 import javax.swing.*;
 import java.awt.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class DashboardPanel extends JPanel {
@@ -67,10 +66,6 @@ public class DashboardPanel extends JPanel {
         textGroup.setLayout(new BoxLayout(textGroup, BoxLayout.Y_AXIS));
         textGroup.setOpaque(false);
 
-        JLabel sysLabel = new JLabel("SYSTEM // ROOT • TELEMETRY_ACTIVE");
-        sysLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        sysLabel.setForeground(new Color(56, 189, 248));
-
         JLabel greetingLabel = new JLabel("Good morning, " + username + ".");
         greetingLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
         greetingLabel.setForeground(Color.WHITE);
@@ -79,26 +74,11 @@ public class DashboardPanel extends JPanel {
         subLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subLabel.setForeground(new Color(140, 160, 175));
 
-        textGroup.add(sysLabel);
         textGroup.add(greetingLabel);
+        textGroup.add(Box.createVerticalStrut(4));
         textGroup.add(subLabel);
 
-        // Companion Box (Top Right)
-        JPanel companionCard = createHudCard();
-        companionCard.setLayout(new BorderLayout(10, 0));
-        companionCard.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-
-        JLabel iconLbl = new JLabel("⚙");
-        iconLbl.setFont(new Font("Segoe UI Symbol", Font.PLAIN, 22));
-        iconLbl.setForeground(new Color(56, 189, 248));
-        
-        JLabel compText = new JLabel("<html><font color='#38BDF8'><b>CHIMP://SYS COMPANION</b></font><br><font color='#8EA3B5' size='3'>System operational. All systems nominal.</font></html>");
-        
-        companionCard.add(iconLbl, BorderLayout.WEST);
-        companionCard.add(compText, BorderLayout.CENTER);
-
         header.add(textGroup, BorderLayout.WEST);
-        header.add(companionCard, BorderLayout.EAST);
         return header;
     }
 
@@ -161,7 +141,10 @@ public class DashboardPanel extends JPanel {
         JPanel panel = createHudCard();
         panel.setLayout(new BorderLayout(10, 10));
 
-        // Header
+        // Header Container
+        JPanel headerContainer = new JPanel(new BorderLayout());
+        headerContainer.setOpaque(false);
+
         JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         topRow.setOpaque(false);
 
@@ -176,16 +159,18 @@ public class DashboardPanel extends JPanel {
         topRow.add(iconLbl);
         topRow.add(title);
 
+        // Highlighted Solid Blue Start Focus Button
         JButton viewAllBtn = new JButton("START FOCUS");
         viewAllBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        viewAllBtn.setForeground(new Color(56, 189, 248));
-        viewAllBtn.setContentAreaFilled(false);
-        viewAllBtn.setBorder(BorderFactory.createLineBorder(new Color(56, 189, 248), 1));
+        viewAllBtn.setBackground(new Color(28, 176, 246)); // Sapphire Blue
+        viewAllBtn.setForeground(Color.WHITE);
+        viewAllBtn.setFocusPainted(false);
+        viewAllBtn.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
         viewAllBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        // Redirect to Focus Timer View
         viewAllBtn.addActionListener(e -> parentFrame.switchView("POMODORO"));
 
-        JPanel headerContainer = new JPanel(new BorderLayout());
-        headerContainer.setOpaque(false);
         headerContainer.add(topRow, BorderLayout.WEST);
         headerContainer.add(viewAllBtn, BorderLayout.EAST);
 
@@ -256,6 +241,12 @@ public class DashboardPanel extends JPanel {
         check.addActionListener(e -> {
             taskDAO.updateTaskCompletion(task.getId(), check.isSelected());
             check.setForeground(check.isSelected() ? new Color(100, 120, 135) : Color.WHITE);
+
+            if (check.isSelected()) {
+                SystemLogger.log("Objective verified: " + task.getTitle() + " (+50 XP)");
+            } else {
+                SystemLogger.log("Objective unchecked: " + task.getTitle());
+            }
         });
 
         JLabel statusBadge = new JLabel(task.isCompleted() ? "✓ VERIFIED (+50 XP)" : "READY");
@@ -313,11 +304,8 @@ public class DashboardPanel extends JPanel {
         logArea.setFont(new Font("Monospaced", Font.PLAIN, 10));
         logArea.setBackground(new Color(12, 16, 20));
         logArea.setForeground(new Color(34, 197, 94));
-        
-        String timeNow = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
-        logArea.setText(timeNow + " Objective completed\n" +
-                        timeNow + " Streak maintained\n" +
-                        timeNow + " Telemetry active.");
+
+        SystemLogger.registerTextArea(logArea);
 
         logCard.add(new JScrollPane(logArea), BorderLayout.CENTER);
 

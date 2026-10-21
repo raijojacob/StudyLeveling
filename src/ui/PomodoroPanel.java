@@ -1,151 +1,241 @@
 package ui;
 
-import logic.PomodoroEngine;
-import logic.PomodoroEngine.PomodoroListener;
+import db.StatsDAO;
+import logic.UserSession;
 
 import javax.swing.*;
 import java.awt.*;
 
-public class PomodoroPanel extends JPanel implements PomodoroListener {
-    private PomodoroEngine engine;
-    
-    private JLabel timeDisplay;
-    private JLabel pauseInfoLabel;
+public class PomodoroPanel extends JPanel {
+    private JLabel timerLabel;
+    private JLabel statusLabel;
+    private JLabel heartLabel;
     private JButton startBtn;
     private JButton pauseBtn;
     private JButton abandonBtn;
 
+    private Timer swingTimer;
+    private int remainingSeconds = 25 * 60; // 25 Minutes Default
+    private boolean isRunning = false;
+    private int pauseTokens = 3;
+
+    private StatsDAO statsDAO;
+
     public PomodoroPanel() {
-        engine = new PomodoroEngine(this);
+        statsDAO = new StatsDAO();
 
-        setLayout(new GridBagLayout());
+        setLayout(new BorderLayout(20, 20));
+        setBackground(new Color(18, 24, 29)); // Dark Obsidian Canvas
+        setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+
+        // 1. Header
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+
+        JLabel titleLbl = new JLabel("FOCUS TIMER ENGINE");
+        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        titleLbl.setForeground(Color.WHITE);
+
+        JLabel subLbl = new JLabel("// 25m FOCUS INTERVAL • AUTOMATED XP HARVEST");
+        subLbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        subLbl.setForeground(new Color(56, 189, 248));
+
+        JPanel titleGroup = new JPanel();
+        titleGroup.setLayout(new BoxLayout(titleGroup, BoxLayout.Y_AXIS));
+        titleGroup.setOpaque(false);
+        titleGroup.add(titleLbl);
+        titleGroup.add(subLbl);
+
+        header.add(titleGroup, BorderLayout.WEST);
+
+        // Pause Token Hearts Display
+        heartLabel = new JLabel("PAUSES: ♥ ♥ ♥");
+        heartLabel.setFont(new Font("Segoe UI Symbol", Font.BOLD, 13));
+        heartLabel.setForeground(new Color(248, 113, 113));
+        header.add(heartLabel, BorderLayout.EAST);
+
+        add(header, BorderLayout.NORTH);
+
+        // 2. Central Clock Card
+        JPanel centerCard = new JPanel(new GridBagLayout());
+        centerCard.setBackground(new Color(24, 32, 38));
+        centerCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(38, 52, 64), 1),
+            BorderFactory.createEmptyBorder(30, 30, 30, 30)
+        ));
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(15, 15, 15, 15);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-
-        // 1. Title
-        JLabel titleLabel = new JLabel("Deep Focus Session", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        
-        // 2. Giant Clock Display
-        timeDisplay = new JLabel(engine.getFormattedTime(), SwingConstants.CENTER);
-        timeDisplay.setFont(new Font("Segoe UI", Font.BOLD, 120)); // Massive font
-        timeDisplay.setForeground(new Color(80, 250, 123)); // Neon green theme for active timer
-
-        // 3. Pause Tracker
-        pauseInfoLabel = new JLabel("Pauses remaining: 3", SwingConstants.CENTER);
-        pauseInfoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-        pauseInfoLabel.setForeground(Color.LIGHT_GRAY);
-
-        // 4. Control Buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0));
-        startBtn = new JButton("Start Focus");
-        pauseBtn = new JButton("Pause");
-        abandonBtn = new JButton("Abandon Session");
-
-        // Style buttons
-        startBtn.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        pauseBtn.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        abandonBtn.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        
-        abandonBtn.setForeground(new Color(255, 85, 85)); // Red warning text
-        pauseBtn.setEnabled(false); // Can't pause before starting
-        abandonBtn.setEnabled(false); // Can't abandon before starting
-
-        buttonPanel.add(startBtn);
-        buttonPanel.add(pauseBtn);
-        buttonPanel.add(abandonBtn);
-
-        // 5. Layout Assembly
         gbc.gridx = 0; gbc.gridy = 0;
-        add(titleLabel, gbc);
+        gbc.insets = new Insets(10, 10, 10, 10);
+
+        statusLabel = new JLabel("READY FOR FOCUS SESSION", SwingConstants.CENTER);
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusLabel.setForeground(new Color(140, 160, 175));
+        centerCard.add(statusLabel, gbc);
 
         gbc.gridy = 1;
-        add(timeDisplay, gbc);
+        timerLabel = new JLabel("25:00", SwingConstants.CENTER);
+        timerLabel.setFont(new Font("Segoe UI", Font.BOLD, 72));
+        timerLabel.setForeground(new Color(56, 189, 248)); // Sapphire Cyan
+        centerCard.add(timerLabel, gbc);
 
+        // Quick Preset Buttons
         gbc.gridy = 2;
-        add(pauseInfoLabel, gbc);
+        JPanel presetBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        presetBar.setOpaque(false);
 
-        gbc.gridy = 3;
-        add(buttonPanel, gbc);
+        JButton p5 = createPresetButton("5m Test", 5 * 60);
+        JButton p25 = createPresetButton("25m Standard", 25 * 60);
+        JButton p50 = createPresetButton("50m Deep Work", 50 * 60);
 
-        // 6. Button Listeners
-        startBtn.addActionListener(e -> handleStart());
-        pauseBtn.addActionListener(e -> handlePause());
-        abandonBtn.addActionListener(e -> handleAbandon());
-    }
+        presetBar.add(p5);
+        presetBar.add(p25);
+        presetBar.add(p50);
+        centerCard.add(presetBar, gbc);
 
-    private void handleStart() {
-        engine.start();
-        startBtn.setEnabled(false);
-        abandonBtn.setEnabled(true);
-        updatePauseButtonState();
-        timeDisplay.setForeground(new Color(80, 250, 123)); // Active green
-    }
+        add(centerCard, BorderLayout.CENTER);
 
-    private void handlePause() {
-        if (engine.pause()) {
-            startBtn.setEnabled(true);
-            startBtn.setText("Resume");
-            pauseBtn.setEnabled(false);
-            timeDisplay.setForeground(new Color(241, 250, 140)); // Paused yellow
-        }
-    }
+        // 3. Bottom Controls Bar
+        JPanel controlBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
+        controlBar.setOpaque(false);
 
-    private void handleAbandon() {
-        int confirm = JOptionPane.showConfirmDialog(
-            this,
-            "Abandoning this session means you earn 0 XP. Are you sure?",
-            "Abandon Session",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.WARNING_MESSAGE
-        );
+        startBtn = new JButton("START FOCUS");
+        startBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        startBtn.setBackground(new Color(34, 197, 94));
+        startBtn.setForeground(Color.WHITE);
+        startBtn.setPreferredSize(new Dimension(140, 40));
+        startBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        startBtn.addActionListener(e -> startTimer());
 
-        if (confirm == JOptionPane.YES_OPTION) {
-            engine.abandon();
-            resetUI();
-        }
-    }
-
-    private void resetUI() {
-        startBtn.setEnabled(true);
-        startBtn.setText("Start Focus");
+        pauseBtn = new JButton("PAUSE");
+        pauseBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        pauseBtn.setBackground(new Color(245, 158, 11));
+        pauseBtn.setForeground(Color.WHITE);
+        pauseBtn.setPreferredSize(new Dimension(110, 40));
         pauseBtn.setEnabled(false);
-        abandonBtn.setEnabled(false);
-        timeDisplay.setForeground(Color.WHITE); // Default white
+        pauseBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        pauseBtn.addActionListener(e -> pauseTimer());
+
+        abandonBtn = new JButton("RESET");
+        abandonBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        abandonBtn.setBackground(new Color(40, 55, 70));
+        abandonBtn.setForeground(new Color(200, 210, 220));
+        abandonBtn.setPreferredSize(new Dimension(110, 40));
+        abandonBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        abandonBtn.addActionListener(e -> resetTimer());
+
+        controlBar.add(startBtn);
+        controlBar.add(pauseBtn);
+        controlBar.add(abandonBtn);
+
+        add(controlBar, BorderLayout.SOUTH);
+
+        // Internal Swing Timer setup (1 second tick)
+        swingTimer = new Timer(1000, e -> tick());
     }
 
-    private void updatePauseButtonState() {
-        pauseBtn.setEnabled(engine.isRunning() && engine.getPausesRemaining() > 0);
-    }
+    private void startTimer() {
+        if (!isRunning) {
+            isRunning = true;
+            swingTimer.start();
+            statusLabel.setText("● FOCUS SESSION ACTIVE");
+            statusLabel.setForeground(new Color(34, 197, 94));
+            startBtn.setEnabled(false);
+            pauseBtn.setEnabled(true);
 
-    // --- PomodoroListener Interface Methods ---
-
-    @Override
-    public void onTick(String formattedTime) {
-        timeDisplay.setText(formattedTime);
-    }
-
-    @Override
-    public void onPauseStateChanged(int pausesRemaining) {
-        pauseInfoLabel.setText("Pauses remaining: " + pausesRemaining);
-        if (pausesRemaining == 0) {
-            pauseInfoLabel.setText("No pauses remaining!");
-            pauseInfoLabel.setForeground(new Color(255, 85, 85)); // Red
-        } else {
-            pauseInfoLabel.setForeground(Color.LIGHT_GRAY);
+            // Log session start event
+            logic.SystemLogger.log("Focus Session started (25m timer)");
         }
     }
 
-    @Override
-    public void onTimerComplete() {
-        resetUI();
-        timeDisplay.setForeground(new Color(189, 147, 249)); // Victory purple
-        
-        // Reward the user and save to database
-        logic.GamificationEngine engine = new logic.GamificationEngine();
-        engine.rewardPomodoroCompletion();
-        
-        JOptionPane.showMessageDialog(this, "Session Complete! You earned +50 XP and updated your streak!", "Success", JOptionPane.INFORMATION_MESSAGE);
+    private void pauseTimer() {
+        if (isRunning && pauseTokens > 0) {
+            isRunning = false;
+            swingTimer.stop();
+            pauseTokens--;
+            updateHeartDisplay();
+
+            statusLabel.setText("⏸ SESSION PAUSED (" + pauseTokens + " PAUSES LEFT)");
+            statusLabel.setForeground(new Color(245, 158, 11));
+            startBtn.setEnabled(true);
+            pauseBtn.setEnabled(false);
+
+            // Log session pause event
+            logic.SystemLogger.log("Focus Session paused (" + pauseTokens + " pauses left)");
+        } else if (pauseTokens <= 0) {
+            JOptionPane.showMessageDialog(this, "No pause tokens remaining for this session!", "Pause Limit", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void resetTimer() {
+        swingTimer.stop();
+        isRunning = false;
+        remainingSeconds = 25 * 60;
+        pauseTokens = 3;
+        updateClockDisplay();
+        updateHeartDisplay();
+
+        statusLabel.setText("READY FOR FOCUS SESSION");
+        statusLabel.setForeground(new Color(140, 160, 175));
+        startBtn.setEnabled(true);
+        pauseBtn.setEnabled(false);
+    }
+
+    private void tick() {
+        if (remainingSeconds > 0) {
+            remainingSeconds--;
+            updateClockDisplay();
+        } else {
+            swingTimer.stop();
+            isRunning = false;
+
+            // Session Completed -> Award XP to user
+            int userId = UserSession.getInstance().getUserId();
+            if (userId != -1) {
+                statsDAO.addXp(userId, 50);
+            }
+
+            // Log session completion event
+            logic.SystemLogger.log("Focus Session completed (+50 XP harvested)");
+
+            statusLabel.setText("✓ SESSION COMPLETE! +50 XP HARVESTED");
+            statusLabel.setForeground(new Color(34, 197, 94));
+            JOptionPane.showMessageDialog(this, "Focus Session Complete!\n+50 XP added to your database profile.", "Target Reached", JOptionPane.INFORMATION_MESSAGE);
+            resetTimer();
+        }
+    }
+
+    private void updateClockDisplay() {
+        int mins = remainingSeconds / 60;
+        int secs = remainingSeconds % 60;
+        timerLabel.setText(String.format("%02d:%02d", mins, secs));
+    }
+
+    private void updateHeartDisplay() {
+        StringBuilder sb = new StringBuilder("PAUSES: ");
+        for (int i = 0; i < pauseTokens; i++) {
+            sb.append("♥ ");
+        }
+        for (int i = pauseTokens; i < 3; i++) {
+            sb.append("♡ ");
+        }
+        heartLabel.setText(sb.toString().trim());
+    }
+
+    private JButton createPresetButton(String text, int seconds) {
+        JButton btn = new JButton(text);
+        btn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        btn.setForeground(new Color(170, 185, 200));
+        btn.setContentAreaFilled(false);
+        btn.setBorder(BorderFactory.createLineBorder(new Color(50, 65, 80), 1));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        btn.addActionListener(e -> {
+            if (!isRunning) {
+                remainingSeconds = seconds;
+                updateClockDisplay();
+            }
+        });
+        return btn;
     }
 }
