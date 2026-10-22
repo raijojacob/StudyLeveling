@@ -10,7 +10,7 @@ public class UserDAO {
 
     public boolean registerUserWithFeedback(String username, String password) throws Exception {
         String hashedPassword = hashPassword(password);
-        String insertUserQuery = "INSERT INTO users (username, password_hash) VALUES (?, ?)";
+        String insertUserQuery = "INSERT INTO users (username, password) VALUES (?, ?)";
         String insertStatsQuery = "INSERT INTO user_stats (user_id, total_xp, current_streak) VALUES (?, 0, 0)";
 
         try (Connection conn = DatabaseManager.getConnection();
@@ -41,7 +41,7 @@ public class UserDAO {
     // Attempts to log the user in. Returns the User object if successful, null if failed.
     public User authenticateUser(String username, String password) {
         String hashedPassword = hashPassword(password);
-        String query = "SELECT * FROM users WHERE username = ? AND password_hash = ?";
+        String query = "SELECT * FROM users WHERE username = ? AND password = ?";
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -54,7 +54,7 @@ public class UserDAO {
                     return new User(
                         rs.getInt("id"),
                         rs.getString("username"),
-                        rs.getString("password_hash")
+                        rs.getString("password")
                     );
                 }
             }
@@ -67,7 +67,7 @@ public class UserDAO {
     // Registers a new user. Returns true if successful, false if username already exists.
     public boolean registerUser(String username, String password) {
         String hashedPassword = hashPassword(password);
-        String insertUserQuery = "INSERT INTO users (username, password_hash) VALUES (?, ?)";
+        String insertUserQuery = "INSERT INTO users (username, password) VALUES (?, ?)";
         String insertStatsQuery = "INSERT INTO user_stats (user_id, total_xp, current_streak) VALUES (?, 0, 0)";
 
         try (Connection conn = DatabaseManager.getConnection();

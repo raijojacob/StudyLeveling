@@ -8,6 +8,7 @@ public class MainFrame extends JFrame {
     private JPanel contentPanel;
     private CardLayout cardLayout;
     private SidebarPanel sidebar;
+    private DashboardPanel dashboardPanel; // Keep a reference to refresh it
 
     public MainFrame() {
         String username = UserSession.getInstance().getUsername();
@@ -20,8 +21,11 @@ public class MainFrame extends JFrame {
         cardLayout = new CardLayout();
         contentPanel = new JPanel(cardLayout);
 
+        // Initialize and store reference to DashboardPanel
+        dashboardPanel = new DashboardPanel(this);
+
         // Register View Panels with correct unique route names
-        contentPanel.add(new DashboardPanel(this), "DASHBOARD");
+        contentPanel.add(dashboardPanel, "DASHBOARD");
         contentPanel.add(new DailyDashboardPanel(this), "DAILY_PATH");
         contentPanel.add(new PomodoroPanel(), "POMODORO");
         contentPanel.add(new TaskManagerPanel(), "TASKS");
@@ -42,6 +46,11 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, viewName);
         if (sidebar != null) {
             sidebar.setActiveView(viewName);
+        }
+        
+        // Automatically refresh dashboard tasks and metrics whenever navigating to it
+        if (viewName.equals("DASHBOARD") && dashboardPanel != null) {
+            dashboardPanel.refreshDashboard();
         }
     }
 

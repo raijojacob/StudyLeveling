@@ -42,7 +42,7 @@ public class TaskDAO {
     }
 
     public void addTask(int userId, String title, LocalDate dueDate) {
-        String query = "INSERT INTO tasks (user_id, title, due_date, completed) VALUES (?, ?, ?, false)";
+        String query = "INSERT INTO tasks (user_id, title, due_date, completed) VALUES (?, ?, ?, 0)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
             

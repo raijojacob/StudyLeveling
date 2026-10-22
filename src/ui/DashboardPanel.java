@@ -16,6 +16,7 @@ public class DashboardPanel extends JPanel {
     private TaskDAO taskDAO;
     private StatsDAO statsDAO;
     private DocumentDAO documentDAO;
+    private JPanel listContainer; 
 
     public DashboardPanel(MainFrame parentFrame) {
         this.parentFrame = parentFrame;
@@ -55,6 +56,39 @@ public class DashboardPanel extends JPanel {
 
         mainContent.add(splitPanel, BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
+    }
+
+    // Public method to refresh dashboard metrics and tasks whenever it's shown
+    public void refreshDashboard() {
+        removeAll();
+        setLayout(new BorderLayout(15, 15));
+        setBackground(new Color(18, 24, 29));
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        add(createHeaderPanel(), BorderLayout.NORTH);
+
+        JPanel mainContent = new JPanel(new BorderLayout(15, 15));
+        mainContent.setOpaque(false);
+        mainContent.add(createMetricsGrid(), BorderLayout.NORTH);
+
+        JPanel splitPanel = new JPanel(new GridBagLayout());
+        splitPanel.setOpaque(false);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.insets = new Insets(0, 0, 0, 0);
+
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.65; gbc.weighty = 1.0;
+        splitPanel.add(createTodaysWorkPanel(), gbc);
+
+        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 0.35; gbc.weighty = 1.0;
+        gbc.insets = new Insets(0, 15, 0, 0);
+        splitPanel.add(createRightSidePanel(), gbc);
+
+        mainContent.add(splitPanel, BorderLayout.CENTER);
+        add(mainContent, BorderLayout.CENTER);
+
+        revalidate();
+        repaint();
     }
 
     private JPanel createHeaderPanel() {
@@ -169,16 +203,13 @@ public class DashboardPanel extends JPanel {
         topRow.add(iconLbl);
         topRow.add(title);
 
-        // Highlighted Solid Blue Start Focus Button
         JButton viewAllBtn = new JButton("START FOCUS");
         viewAllBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        viewAllBtn.setBackground(new Color(28, 176, 246)); // Sapphire Blue
+        viewAllBtn.setBackground(new Color(28, 176, 246));
         viewAllBtn.setForeground(Color.WHITE);
         viewAllBtn.setFocusPainted(false);
         viewAllBtn.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
         viewAllBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
-        // Redirect to Focus Timer View
         viewAllBtn.addActionListener(e -> parentFrame.switchView("POMODORO"));
 
         headerContainer.add(topRow, BorderLayout.WEST);
@@ -187,7 +218,7 @@ public class DashboardPanel extends JPanel {
         panel.add(headerContainer, BorderLayout.NORTH);
 
         // Task List Nodes
-        JPanel listContainer = new JPanel();
+        listContainer = new JPanel();
         listContainer.setLayout(new BoxLayout(listContainer, BoxLayout.Y_AXIS));
         listContainer.setOpaque(false);
 
@@ -243,20 +274,36 @@ public class DashboardPanel extends JPanel {
             BorderFactory.createLineBorder(task.isCompleted() ? new Color(34, 197, 94, 100) : new Color(40, 55, 70), 1),
             BorderFactory.createEmptyBorder(8, 10, 8, 10)
         ));
+        
+        // Prevent vertical stretching in BoxLayout
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
 
         JCheckBox check = new JCheckBox(String.format("0%d // %s", index, task.getTitle()), task.isCompleted());
         check.setFont(new Font("Segoe UI", Font.BOLD, 12));
         check.setForeground(task.isCompleted() ? new Color(100, 120, 135) : Color.WHITE);
         check.setOpaque(false);
-        check.addActionListener(e -> {
-            taskDAO.updateTaskCompletion(task.getId(), check.isSelected());
-            check.setForeground(check.isSelected() ? new Color(100, 120, 135) : Color.WHITE);
 
-            if (check.isSelected()) {
-                SystemLogger.log("Objective verified: " + task.getTitle() + " (+50 XP)");
-            } else {
-                SystemLogger.log("Objective unchecked: " + task.getTitle());
+        // Updated Action Listener to persist XP to database
+        check.addActionListener(e -> {
+            boolean isChecked = check.isSelected();
+            int userId = UserSession.getInstance().getUserId();
+
+            // 1. Update task state in DB
+            taskDAO.updateTaskCompletion(task.getId(), isChecked);
+
+            // 2. Add or Deduct XP based on check state
+            if (userId != -1) {
+                if (isChecked) {
+                    statsDAO.addXp(userId, 50); // Give 50 XP
+                    SystemLogger.log("Objective verified: " + task.getTitle() + " (+50 XP)");
+                } else {
+                    statsDAO.addXp(userId, -50); // Remove 50 XP
+                    SystemLogger.log("Objective unchecked: " + task.getTitle() + " (-50 XP)");
+                }
             }
+
+            // 3. Refresh Dashboard entirely so top metric cards update visually
+            refreshDashboard();
         });
 
         JLabel statusBadge = new JLabel(task.isCompleted() ? "✓ VERIFIED (+50 XP)" : "READY");
@@ -272,7 +319,7 @@ public class DashboardPanel extends JPanel {
         JPanel right = new JPanel(new GridLayout(2, 1, 0, 15));
         right.setOpaque(false);
 
-        // 1. Quick Repository (Dynamic database read)
+        // 1. Quick Repository
         JPanel repoCard = createHudCard();
         repoCard.setLayout(new BorderLayout(10, 10));
 

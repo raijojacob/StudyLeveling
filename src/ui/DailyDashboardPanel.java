@@ -7,12 +7,14 @@ import models.Task;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.List;
 
 public class DailyDashboardPanel extends JPanel {
     private TaskDAO taskDAO;
     private JPanel listContainer;
-    private MainFrame parentFrame; // Added parent reference for routing
+    private MainFrame parentFrame;
 
     public DailyDashboardPanel(MainFrame parentFrame) {
         this.parentFrame = parentFrame;
@@ -27,6 +29,14 @@ public class DailyDashboardPanel extends JPanel {
 
         // 2. CENTER TASK LIST CONTAINER
         add(createTaskListPanel(), BorderLayout.CENTER);
+
+        // Auto-refresh task nodes from DB whenever this view tab is displayed
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                refreshTaskList();
+            }
+        });
     }
 
     private JPanel createHeaderPanel() {
@@ -119,6 +129,8 @@ public class DailyDashboardPanel extends JPanel {
                 listContainer.add(createTaskRow(task, nodeNum++));
                 listContainer.add(Box.createVerticalStrut(8));
             }
+            // Vertical glue pushes all task cards up to the top
+            listContainer.add(Box.createVerticalGlue());
         }
         listContainer.revalidate();
         listContainer.repaint();
@@ -127,6 +139,10 @@ public class DailyDashboardPanel extends JPanel {
     private JPanel createTaskRow(Task task, int index) {
         JPanel row = new JPanel(new BorderLayout(10, 0));
         row.setOpaque(false);
+        
+        // Prevent BoxLayout from stretching the task card vertically
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
+
         row.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(task.isCompleted() ? new Color(34, 197, 94, 100) : new Color(40, 55, 70), 1),
             BorderFactory.createEmptyBorder(8, 10, 8, 10)

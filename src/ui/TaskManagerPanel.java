@@ -12,6 +12,8 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -43,6 +45,15 @@ public class TaskManagerPanel extends JPanel {
         splitPane.setBorder(null);
 
         add(splitPane, BorderLayout.CENTER);
+
+        // Auto-refresh tasks from MySQL whenever this view tab is displayed
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                refreshTaskList();
+            }
+        });
+
         refreshTaskList();
     }
 
@@ -92,10 +103,13 @@ public class TaskManagerPanel extends JPanel {
         return card;
     }
 
-    private void refreshTaskList() {
+    public void refreshTaskList() {
         taskListContainer.removeAll();
         int userId = UserSession.getInstance().getUserId();
+        System.out.println("DEBUG: Refreshing task list for userId = " + userId);
+        
         List<Task> tasks = taskDAO.getTasksForUser(userId);
+        System.out.println("DEBUG: Found " + tasks.size() + " tasks in database.");
 
         if (tasks.isEmpty()) {
             JLabel empty = new JLabel("No active tasks found. Add manually or upload a syllabus.");
@@ -120,6 +134,9 @@ public class TaskManagerPanel extends JPanel {
             BorderFactory.createLineBorder(task.isCompleted() ? new Color(34, 197, 94, 100) : new Color(40, 55, 70), 1),
             BorderFactory.createEmptyBorder(6, 8, 6, 8)
         ));
+
+        // Prevent BoxLayout from stretching the row vertically
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
 
         JCheckBox check = new JCheckBox(String.format("0%d // %s", index, task.getTitle()), task.isCompleted());
         check.setFont(new Font("Segoe UI", Font.BOLD, 11));

@@ -54,7 +54,7 @@ public class SidebarPanel extends JPanel {
         title.setForeground(Color.WHITE);
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel subtitle = new JLabel("// LOCAL HUD SYSTEM");
+        JLabel subtitle = new JLabel("Your Personal Study Companion.");
         subtitle.setFont(new Font("Segoe UI", Font.BOLD, 9));
         subtitle.setForeground(new Color(56, 189, 248));
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
