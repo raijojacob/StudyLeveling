@@ -1,5 +1,6 @@
 package ui;
 
+import db.DocumentDAO;
 import db.TaskDAO;
 import logic.SystemLogger;
 import logic.UserSession;
@@ -17,6 +18,7 @@ import java.awt.event.ComponentEvent;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 public class TaskManagerPanel extends JPanel {
@@ -106,10 +108,8 @@ public class TaskManagerPanel extends JPanel {
     public void refreshTaskList() {
         taskListContainer.removeAll();
         int userId = UserSession.getInstance().getUserId();
-        System.out.println("DEBUG: Refreshing task list for userId = " + userId);
         
         List<Task> tasks = taskDAO.getTasksForUser(userId);
-        System.out.println("DEBUG: Found " + tasks.size() + " tasks in database.");
 
         if (tasks.isEmpty()) {
             JLabel empty = new JLabel("No active tasks found. Add manually or upload a syllabus.");
@@ -253,16 +253,77 @@ public class TaskManagerPanel extends JPanel {
         sylHeader.add(uploadBtn, BorderLayout.EAST);
         syllabusCard.add(sylHeader, BorderLayout.NORTH);
 
-        // Preview Table
-        previewTableModel = new DefaultTableModel(new String[]{"Module / Task Title", "Due Date"}, 0);
+        // Preview Table (Editable)
+        previewTableModel = new DefaultTableModel(new String[]{"Module / Task Title", "Due Date"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return true; // Allows double-clicking to edit cells directly
+            }
+        };
         previewTable = new JTable(previewTableModel);
         previewTable.setBackground(new Color(15, 20, 24));
         previewTable.setForeground(Color.WHITE);
         previewTable.setGridColor(new Color(38, 52, 64));
+        previewTable.setSelectionBackground(new Color(38, 52, 64));
         
         JScrollPane tableScroll = new JScrollPane(previewTable);
         tableScroll.getViewport().setBackground(new Color(15, 20, 24));
         syllabusCard.add(tableScroll, BorderLayout.CENTER);
+
+        // Table Controls (Edit Date / Delete Row)
+        JPanel tableControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        tableControls.setOpaque(false);
+        tableControls.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+
+        JButton editDateBtn = new JButton("✎ Change Date");
+        editDateBtn.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        editDateBtn.setForeground(new Color(56, 189, 248));
+        editDateBtn.setContentAreaFilled(false);
+        editDateBtn.setBorder(null);
+        editDateBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        editDateBtn.addActionListener(e -> {
+            int row = previewTable.getSelectedRow();
+            if (row == -1) {
+                JOptionPane.showMessageDialog(this, "Select a task to change its date.", "No Selection", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            String currentDate = (String) previewTableModel.getValueAt(row, 1);
+            String newDate = JOptionPane.showInputDialog(this, "Enter new due date (YYYY-MM-DD):", currentDate);
+            if (newDate != null && !newDate.trim().isEmpty()) {
+                try {
+                    LocalDate.parse(newDate.trim()); // Validate date formatting
+                    previewTableModel.setValueAt(newDate.trim(), row, 1);
+                } catch (DateTimeParseException ex) {
+                    JOptionPane.showMessageDialog(this, "Invalid date format. Use YYYY-MM-DD.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        JButton deleteRowBtn = new JButton("✕ Remove Selected");
+        deleteRowBtn.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        deleteRowBtn.setForeground(new Color(248, 113, 113));
+        deleteRowBtn.setContentAreaFilled(false);
+        deleteRowBtn.setBorder(null);
+        deleteRowBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        deleteRowBtn.addActionListener(e -> {
+            int[] rows = previewTable.getSelectedRows();
+            if (rows.length == 0) {
+                JOptionPane.showMessageDialog(this, "Select a task to remove.", "No Selection", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            // Remove from bottom to top so row indices don't shift during deletion
+            for (int i = rows.length - 1; i >= 0; i--) {
+                previewTableModel.removeRow(rows[i]);
+            }
+        });
+
+        tableControls.add(editDateBtn);
+        tableControls.add(deleteRowBtn);
+
+        // Group the table controls and approve button at the bottom
+        JPanel bottomGroup = new JPanel(new BorderLayout());
+        bottomGroup.setOpaque(false);
+        bottomGroup.add(tableControls, BorderLayout.NORTH);
 
         JButton approveBtn = new JButton("APPROVE & SAVE OUTLINE");
         approveBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
@@ -270,7 +331,9 @@ public class TaskManagerPanel extends JPanel {
         approveBtn.setForeground(Color.WHITE);
         approveBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         approveBtn.addActionListener(e -> approveAndSaveOutline());
-        syllabusCard.add(approveBtn, BorderLayout.SOUTH);
+        
+        bottomGroup.add(approveBtn, BorderLayout.SOUTH);
+        syllabusCard.add(bottomGroup, BorderLayout.SOUTH);
 
         right.add(manualCard);
         right.add(syllabusCard);
@@ -286,18 +349,57 @@ public class TaskManagerPanel extends JPanel {
                 PDFTextStripper stripper = new PDFTextStripper();
                 String text = stripper.getText(doc);
                 String[] lines = text.split("\\r?\\n");
+                
+                StringBuilder contentBuilder = new StringBuilder();
+                
+                java.util.Set<String> ignoreList = java.util.Set.of(
+                    "SEMESTER", "DIGITAL ELECTRONICS", "COURSE CODE", "CIE MARKS",
+                    "TEACHING HOURS", "ESE MARKS", "CREDITS", "EXAM HOURS",
+                    "PREREQUISITES", "COURSE TYPE", "COURSE OBJECTIVES", "SYLLABUS",
+                    "MODULE", "SYLLABUS DESCRIPTION", "CONTACT", "PAGE", "HOURS"
+                );
+
+                for (String line : lines) {
+                    String trimmed = line.trim();
+                    String upper = trimmed.toUpperCase();
+                    
+                    if (trimmed.length() < 3 || trimmed.matches("^\\d+$") || trimmed.matches("^\\d+\\s+\\d+$")) {
+                        continue; 
+                    }
+                    
+                    boolean isNoise = false;
+                    for (String noise : ignoreList) {
+                        if (upper.startsWith(noise) || upper.contains("PAGE ")) {
+                            isNoise = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!isNoise) {
+                        contentBuilder.append(trimmed).append(" "); 
+                    }
+                }
+
+                String cleanText = contentBuilder.toString().replaceAll("\\s+", " ");
+                String[] sentences = cleanText.split("\\.");
 
                 previewTableModel.setRowCount(0);
                 int dayOffset = 1;
                 int count = 0;
 
-                for (String line : lines) {
-                    String trimmed = line.trim();
-                    if (trimmed.toLowerCase().contains("module") || trimmed.toLowerCase().contains("unit") || trimmed.toLowerCase().contains("chapter") || (trimmed.length() > 5 && trimmed.length() < 55 && Character.isUpperCase(trimmed.charAt(0)))) {
-                        previewTableModel.addRow(new Object[]{trimmed, LocalDate.now().plusDays(dayOffset).toString()});
+                for (String sentence : sentences) {
+                    String topic = sentence.trim();
+                    
+                    if (topic.length() > 15) {
+                        if (topic.length() > 120) {
+                            topic = topic.substring(0, 117) + "...";
+                        }
+                        
+                        previewTableModel.addRow(new Object[]{topic + ".", LocalDate.now().plusDays(dayOffset).toString()});
                         count++;
-                        dayOffset += 2;
-                        if (count >= 12) break;
+                        dayOffset += 1; 
+                        
+                        if (count >= 50) break; 
                     }
                 }
 
@@ -305,8 +407,8 @@ public class TaskManagerPanel extends JPanel {
                     previewTableModel.addRow(new Object[]{"Review Syllabus: " + selectedPdfFile.getName(), LocalDate.now().plusDays(1).toString()});
                 }
 
-                SystemLogger.log("Syllabus loaded into preview: " + selectedPdfFile.getName());
-                JOptionPane.showMessageDialog(this, "Syllabus parsed! Review and edit the outline below before approving.", "Preview Ready", JOptionPane.INFORMATION_MESSAGE);
+                SystemLogger.log("Syllabus parsed into granular tasks: " + selectedPdfFile.getName());
+                JOptionPane.showMessageDialog(this, "Deep Scan Complete!\nExtracted " + count + " individual study portions.", "Preview Ready", JOptionPane.INFORMATION_MESSAGE);
 
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(this, "Error parsing PDF: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -315,6 +417,10 @@ public class TaskManagerPanel extends JPanel {
     }
 
     private void approveAndSaveOutline() {
+        if (previewTable.isEditing()) {
+            previewTable.getCellEditor().stopCellEditing();
+        }
+
         int rows = previewTableModel.getRowCount();
         if (rows == 0) {
             JOptionPane.showMessageDialog(this, "No outline portions to approve. Upload a syllabus first.", "Warning", JOptionPane.WARNING_MESSAGE);
@@ -322,15 +428,29 @@ public class TaskManagerPanel extends JPanel {
         }
 
         int userId = UserSession.getInstance().getUserId();
+        int savedCount = 0;
+        
         for (int i = 0; i < rows; i++) {
             String title = (String) previewTableModel.getValueAt(i, 0);
             String dateStr = (String) previewTableModel.getValueAt(i, 1);
-            LocalDate date = LocalDate.parse(dateStr);
-            taskDAO.addTask(userId, title, date);
+            
+            try {
+                LocalDate date = LocalDate.parse(dateStr);
+                taskDAO.addTask(userId, title, date);
+                savedCount++;
+            } catch (DateTimeParseException ex) {
+                SystemLogger.log("Failed to save task: " + title + " (Invalid Date Format)");
+            }
         }
 
-        SystemLogger.log("Approved and saved " + rows + " syllabus tasks.");
-        JOptionPane.showMessageDialog(this, rows + " study tasks successfully approved and saved to database!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        // SAVE DOCUMENT RECORD TO REPOSITORY TABLE
+        if (selectedPdfFile != null && savedCount > 0) {
+            DocumentDAO docDAO = new DocumentDAO();
+            docDAO.insertDocument(userId, selectedPdfFile.getName(), savedCount);
+        }
+
+        SystemLogger.log("Approved and saved " + savedCount + " syllabus tasks.");
+        JOptionPane.showMessageDialog(this, savedCount + " study tasks successfully approved and saved to database!", "Success", JOptionPane.INFORMATION_MESSAGE);
         previewTableModel.setRowCount(0);
         refreshTaskList();
     }

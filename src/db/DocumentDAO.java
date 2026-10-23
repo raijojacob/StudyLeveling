@@ -24,9 +24,22 @@ public class DocumentDAO {
 
     public List<DocumentRecord> getDocumentsForUser(int userId) {
         List<DocumentRecord> docs = new ArrayList<>();
-        // Fallback query or table join depending on your schema. 
-        // If you store files in a `documents` table, query them here:
-        String query = "SELECT file_name, completed_modules, total_modules FROM documents WHERE user_id = ?";
+        
+        // 1. Fetch total completed tasks for this user dynamically
+        int completedTasks = 0;
+        String taskQuery = "SELECT COUNT(*) FROM tasks WHERE user_id = ? AND completed = 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(taskQuery)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) completedTasks = rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        // 2. Fetch document records and map dynamic completed progress
+        String query = "SELECT file_name, total_modules FROM documents WHERE user_id = ?";
         
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -34,17 +47,34 @@ public class DocumentDAO {
             pstmt.setInt(1, userId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
+                    int total = rs.getInt("total_modules");
+                    // Dynamically map completed tasks to the document modules (capped at total modules)
+                    int completedForDoc = Math.min(completedTasks, total);
+                    
                     docs.add(new DocumentRecord(
                         rs.getString("file_name"),
-                        rs.getInt("completed_modules"),
-                        rs.getInt("total_modules")
+                        completedForDoc,
+                        total
                     ));
                 }
             }
         } catch (SQLException e) {
-            // Table might not exist yet or empty, return empty list safely
+            e.printStackTrace();
         }
         
         return docs;
+    }
+
+    public void insertDocument(int userId, String fileName, int totalModules) {
+        String query = "INSERT INTO documents (user_id, file_name, completed_modules, total_modules) VALUES (?, ?, 0, ?)";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setInt(1, userId);
+            pstmt.setString(2, fileName);
+            pstmt.setInt(3, totalModules);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }

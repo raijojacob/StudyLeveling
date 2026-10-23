@@ -72,16 +72,15 @@ public class SidebarPanel extends JPanel {
         panel.setOpaque(false);
         panel.setBorder(new EmptyBorder(0, 10, 0, 10));
 
-        // Create Navigation Buttons (Ensure these strings match your MainFrame CardLayout constraints)
         panel.add(createNavButton("DASHBOARD", "DASHBOARD"));
         panel.add(Box.createVerticalStrut(5));
         panel.add(createNavButton("DAILY TASKS", "DAILY_PATH"));
         panel.add(Box.createVerticalStrut(5));
         panel.add(createNavButton("TASK MANAGER", "TASKS"));
         panel.add(Box.createVerticalStrut(5));
-        panel.add(createNavButton("TIMER ENGINE", "POMODORO"));
+        panel.add(createNavButton("FOCUS TIMER", "POMODORO"));
         panel.add(Box.createVerticalStrut(5));
-        panel.add(createNavButton("TELEMETRY", "STATS"));
+        panel.add(createNavButton("PROGRESS", "STATS"));
 
         return panel;
     }
@@ -97,7 +96,6 @@ public class SidebarPanel extends JPanel {
         btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         
-        // Hover effect for HUD feel, respecting active state
         btn.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
                 btn.setForeground(Color.WHITE);
@@ -113,6 +111,8 @@ public class SidebarPanel extends JPanel {
 
         btn.addActionListener(e -> {
             if(parentFrame != null) {
+                // Auto-refresh sidebar stats whenever navigating tabs
+                refreshSidebarStats();
                 parentFrame.switchView(viewName); 
             }
         });
@@ -121,20 +121,18 @@ public class SidebarPanel extends JPanel {
         return btn;
     }
 
-    /**
-     * Called by MainFrame to visually highlight the active sidebar button.
-     */
     public void setActiveView(String viewName) {
         this.currentActiveView = viewName;
+        refreshSidebarStats(); // Refresh stats whenever view changes
         
         for (Map.Entry<String, JButton> entry : navButtons.entrySet()) {
             JButton btn = entry.getValue();
             if (entry.getKey().equals(viewName)) {
                 btn.setForeground(Color.WHITE);
-                btn.setBackground(new Color(24, 32, 38)); // Active state
+                btn.setBackground(new Color(24, 32, 38));
             } else {
                 btn.setForeground(new Color(140, 160, 175));
-                btn.setBackground(new Color(15, 20, 24)); // Inactive state
+                btn.setBackground(new Color(15, 20, 24));
             }
         }
     }
@@ -148,13 +146,11 @@ public class SidebarPanel extends JPanel {
             new EmptyBorder(20, 20, 20, 20)
         ));
 
-        // Operator Header
         operatorNameLbl = new JLabel("OPERATOR");
         operatorNameLbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
         operatorNameLbl.setForeground(Color.WHITE);
         operatorNameLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        // Level & XP Row
         JPanel statsRow = new JPanel(new BorderLayout());
         statsRow.setOpaque(false);
         statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
@@ -162,7 +158,7 @@ public class SidebarPanel extends JPanel {
         
         levelLbl = new JLabel("LVL 1");
         levelLbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        levelLbl.setForeground(new Color(168, 85, 247)); // Purple Tier Color
+        levelLbl.setForeground(new Color(168, 85, 247)); 
         
         xpLbl = new JLabel("0 XP");
         xpLbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
@@ -171,21 +167,19 @@ public class SidebarPanel extends JPanel {
         statsRow.add(levelLbl, BorderLayout.WEST);
         statsRow.add(xpLbl, BorderLayout.EAST);
 
-        // HUD Progress Bar
-        xpBar = new JProgressBar(0, 500); // 500 XP per level
+        xpBar = new JProgressBar(0, 100); // Scaled to match 100 XP per level tiers elsewhere
         xpBar.setValue(0);
         xpBar.setStringPainted(false);
         xpBar.setPreferredSize(new Dimension(Integer.MAX_VALUE, 6));
         xpBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
         xpBar.setBackground(new Color(24, 32, 38));
-        xpBar.setForeground(new Color(56, 189, 248)); // Sapphire Blue
+        xpBar.setForeground(new Color(56, 189, 248));
         xpBar.setBorderPainted(false);
         xpBar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        // Logout Button
         JButton logoutBtn = new JButton("LOGOUT SYSTEM");
         logoutBtn.setFont(new Font("Segoe UI", Font.BOLD, 9));
-        logoutBtn.setForeground(new Color(248, 113, 113)); // Red accent for logout
+        logoutBtn.setForeground(new Color(248, 113, 113));
         logoutBtn.setContentAreaFilled(false);
         logoutBtn.setBorderPainted(false);
         logoutBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -198,7 +192,6 @@ public class SidebarPanel extends JPanel {
             new AuthFrame().setVisible(true);
         });
 
-        // Assembly
         bottomPanel.add(operatorNameLbl);
         bottomPanel.add(Box.createVerticalStrut(10));
         bottomPanel.add(statsRow);
@@ -210,10 +203,6 @@ public class SidebarPanel extends JPanel {
         return bottomPanel;
     }
 
-    /**
-     * Call this method from MainFrame whenever tasks are completed or XP is gained
-     * to instantly update the sidebar progress bar.
-     */
     public void refreshSidebarStats() {
         int userId = UserSession.getInstance().getUserId();
         String username = UserSession.getInstance().getUsername();
@@ -221,15 +210,18 @@ public class SidebarPanel extends JPanel {
         if (userId != -1) {
             StatsDAO statsDAO = new StatsDAO();
             int xp = statsDAO.getXp(userId);
-            int level = (xp / 500) + 1; // 500 XP per level
-            int currentLevelXp = xp % 500; // Remaining XP for the progress bar
+            int level = (xp / 100) + 1; // 100 XP per level (matching Dashboard formula)
+            int currentLevelXp = xp % 100; // Remaining XP for progress bar
 
             operatorNameLbl.setText((username != null ? username.toUpperCase() : "UNKNOWN"));
             levelLbl.setText("LVL " + level);
             xpLbl.setText(String.format("%,d XP", xp));
             
-            xpBar.setMaximum(500);
+            xpBar.setMaximum(100);
             xpBar.setValue(currentLevelXp);
+            
+            revalidate();
+            repaint();
         }
     }
 }

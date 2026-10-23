@@ -47,6 +47,17 @@ public class StatsDAO {
                     pstmt.executeUpdate();
                 }
             }
+
+            if (amount > 0) {
+                String updateTaskDateQuery = "UPDATE tasks SET due_date = ? WHERE user_id = ? AND completed = 1 ORDER BY id DESC LIMIT 1";
+                try (PreparedStatement pstmt = conn.prepareStatement(updateTaskDateQuery)) {
+                    pstmt.setString(1, LocalDate.now().toString());
+                    pstmt.setInt(2, userId);
+                    pstmt.executeUpdate();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -80,9 +91,8 @@ public class StatsDAO {
         return 0;
     }
 
-    // DYNAMIC HISTOGRAM DATA: Maps completed tasks by due_date to the last 7 days
     public double[] getWeeklyHours(int userId) {
-        double[] hours = new double[7]; // Index 6 is today, Index 0 is 6 days ago
+        double[] hours = new double[7];
         String query = "SELECT due_date, COUNT(*) as task_count FROM tasks WHERE user_id = ? AND completed = 1 GROUP BY due_date";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -97,10 +107,9 @@ public class StatsDAO {
                             LocalDate date = LocalDate.parse(dateStr);
                             long daysBetween = ChronoUnit.DAYS.between(date, today);
                             if (daysBetween >= 0 && daysBetween < 7) {
-                                // Maps 1 completed task to ~0.5 focus hours
-                                hours[6 - (int)daysBetween] += (count * 0.5); 
+                                hours[6 - (int)daysBetween] += (count * 0.5);
                             }
-                        } catch (Exception e) {} // Skip unparseable dates safely
+                        } catch (Exception e) {}
                     }
                 }
             }
@@ -110,9 +119,8 @@ public class StatsDAO {
         return hours;
     }
 
-    // DYNAMIC MATRIX DATA: Maps completed tasks to the last 28 days
     public boolean[] getConsistencyMatrix(int userId) {
-        boolean[] matrix = new boolean[28]; // Index 27 is today, Index 0 is 27 days ago
+        boolean[] matrix = new boolean[28];
         String query = "SELECT due_date FROM tasks WHERE user_id = ? AND completed = 1";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
